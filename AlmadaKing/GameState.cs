@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Threading.Tasks.Dataflow;
 
 namespace AlmadaKing;
@@ -151,5 +152,41 @@ public struct GameState()
             }
 
         }
+    }
+
+    public override string ToString()
+    {
+        var sb = new StringBuilder();
+
+        for (int y = 0; y < 9; y++)
+        {
+            for (int x = 0; x < 9; x++)
+            {
+                var boardIndex = (x / 3) + 3 * (y / 3);
+                var board = crossesBitboards[boardIndex];
+                if (board >> x + 3 * y == 1)
+                {
+                    sb.Append('x');
+                    continue;
+                }
+                
+                board = noughtsBitboards[boardIndex];
+                if (board >> x + 3 * y == 1)
+                {
+                    sb.Append('o');
+                    continue;
+                }
+                
+                sb.Append(' ');
+
+                if (x % 3 == 2 && x < 8)
+                    sb.Append('│');
+            }
+            sb.AppendLine();
+            if (y % 3 == 2 && y < 8)
+                sb.AppendLine("───┼───┼───");
+        }
+
+        return sb.ToString();
     }
 }
