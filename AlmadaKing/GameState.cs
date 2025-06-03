@@ -1,11 +1,14 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks.Dataflow;
 
 namespace AlmadaKing;
 
 public struct GameState()
 {
+    const ulong hasInfo = 0b111_111_111;
     ulong[] noughtsBitboards = new ulong[9];
     ulong[] crossesBitboards = new ulong[9];
     int x, y = -1;
@@ -49,8 +52,14 @@ public struct GameState()
             _ => Player.None
         };
 
-        this.x = x;
-        this.y = y;
+        var targetScore = macroScores[board];
+        if (targetScore is 3 or -3)
+            this.x = this.y = -1;
+        else
+        {
+            this.x = x;
+            this.y = y;
+        }
     }
 
     private void UpMicro(int board, int pos)
@@ -104,6 +113,43 @@ public struct GameState()
 
     public IEnumerable<Move> GetMoves()
     {
-        throw new System.NotImplementedException();
+        if (x != -1 && y != -1)
+        {
+            int board = 3 * y + x;
+            ulong spaces = ~(
+                noughtsBitboards[board] |
+                crossesBitboards[board])
+                & hasInfo;
+            
+            byte pos = (byte)(9 * board);
+            while (spaces > 0)
+            {
+                if ((spaces & 1) > 0)
+                    yield return new Move(
+                        player, pos,
+                        x, y
+                    );
+            }
+            yield break;
+        }
+
+        for (int b = 0; b < 9; b++)
+        {
+            ulong spaces = ~(
+                noughtsBitboards[b] |
+                crossesBitboards[b])
+                & hasInfo;
+            
+            byte pos = (byte)(9 * b);
+            while (spaces > 0)
+            {
+                if ((spaces & 1) > 0)
+                    yield return new Move(
+                        player, pos,
+                        x, y
+                    );
+            }
+
+        }
     }
 }
