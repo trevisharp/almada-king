@@ -27,7 +27,7 @@ public struct GameState()
 
         if (move.Player == Player.X)
         {
-            crossesBitboards[board] &= pos;
+            crossesBitboards[board] |= pos;
             UpMicro(board, x);
             UpMicro(board, 3 + x);
             if (x == y)
@@ -37,7 +37,7 @@ public struct GameState()
         }
         else
         {
-            noughtsBitboards[board] &= pos;
+            noughtsBitboards[board] |= pos;
             DownMicro(board, x);
             DownMicro(board, 3 + x);
             if (x == y)
@@ -53,14 +53,18 @@ public struct GameState()
             _ => Player.None
         };
 
-        var targetScore = macroScores[board];
-        if (targetScore is 3 or -3)
-            this.x = this.y = -1;
-        else
+        for (int i = 0; i < 8; i++)
         {
-            this.x = x;
-            this.y = y;
+            var targetScore = macroScores[board];
+            if (targetScore is not 3 or -3)
+                continue;
+
+            this.x = this.y = -1;
+            return;
         }
+
+        this.x = x;
+        this.y = y;
     }
 
     private void UpMicro(int board, int pos)
@@ -130,6 +134,8 @@ public struct GameState()
                         player, pos,
                         x, y
                     );
+                pos++;
+                spaces >>= 1;
             }
             yield break;
         }
@@ -149,6 +155,8 @@ public struct GameState()
                         player, pos,
                         x, y
                     );
+                pos++;
+                spaces >>= 1;
             }
 
         }
@@ -162,25 +170,28 @@ public struct GameState()
         {
             for (int x = 0; x < 9; x++)
             {
+                if (x % 3 == 0 && x > 0)
+                    sb.Append('│');
+                
                 var boardIndex = (x / 3) + 3 * (y / 3);
+                var boardPos = (x % 3) + 3 * (y % 3);
                 var board = crossesBitboards[boardIndex];
-                if (board >> x + 3 * y == 1)
+                var value = (board >> boardPos) & 1;
+                if (value == 1)
                 {
                     sb.Append('x');
                     continue;
                 }
                 
                 board = noughtsBitboards[boardIndex];
-                if (board >> x + 3 * y == 1)
+                value = (board >> boardPos) & 1;
+                if (value == 1)
                 {
                     sb.Append('o');
                     continue;
                 }
                 
                 sb.Append(' ');
-
-                if (x % 3 == 2 && x < 8)
-                    sb.Append('│');
             }
             sb.AppendLine();
             if (y % 3 == 2 && y < 8)
