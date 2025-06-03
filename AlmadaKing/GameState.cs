@@ -1,19 +1,20 @@
 using System.Text;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace AlmadaKing;
 
 public struct GameState()
 {
     const ulong hasInfo = 0b111_111_111;
-    ulong[] noughtsBitboards = new ulong[9];
-    ulong[] crossesBitboards = new ulong[9];
+    readonly ulong[] noughtsBitboards = new ulong[9];
+    readonly ulong[] crossesBitboards = new ulong[9];
     int x, y = -1;
     Player player = Player.X;
-    int[] fillState = new int[9];
-    int[] resultState = new int[9];
-    int[] microScores = new int[8 * 9];
-    int[] macroScores = new int[8];
+    readonly int[] fillState = new int[9];
+    readonly int[] resultState = new int[9];
+    readonly int[] microScores = new int[8 * 9];
+    readonly int[] macroScores = new int[8];
 
     public void Do(Move move)
     {
@@ -73,53 +74,48 @@ public struct GameState()
         this.y = y;
     }
 
-    readonly void UpMicro(int board, int pos)
-    {
-        var index = 8 * board + pos;
-        microScores[index]++;
-        if (microScores[index] < 3)
-            return;
-        
-        resultState[board] = +1;
-        var x = board % 3;
-        var y = board / 3;
-        UpMacro(x);
-        UpMacro(3 + y);
-        if (x == y)
-            UpMacro(6);
-        if (x + y == 2)
-            UpMacro(7);
-    }
-
-    readonly void DownMicro(int board, int pos)
-    {
-        var index = 8 * board + pos;
-        microScores[index]--;
-        if (microScores[index] > -3)
-            return;
-        
-        resultState[board] = -1;
-        var x = board % 3;
-        var y = board / 3;
-        DownMacro(x);
-        DownMacro(3 + y);
-        if (x == y)
-            DownMacro(6);
-        if (x + y == 2)
-            DownMacro(7);
-    }
-    
-    readonly void UpMacro(int pos)
-        => macroScores[pos]++;
-
-    readonly void DownMacro(int pos)
-        => macroScores[pos]--;
-
     public void Undo(Move move)
     {
+        var board = move.Position / 9;
+        var square = move.Position % 9;
+        var x = square % 3;
+        var y = square / 3;
+        var pos = 1u << square;
 
+        if (move.Player == Player.X)
+        {
+            crossesBitboards[board] &= ~pos;
+            RevertUpMicro(board, x);
+            RevertUpMicro(board, 3 + x);
+            if (x == y)
+                RevertUpMicro(board, 6);
+            if (x + y == 2)
+                RevertUpMicro(board, 7);
+        }
+        else
+        {
+            noughtsBitboards[board] &= ~pos;
+            RevertDownMicro(board, x);
+            RevertDownMicro(board, 3 + x);
+            if (x == y)
+                RevertDownMicro(board, 6);
+            if (x + y == 2)
+                RevertDownMicro(board, 7);
+        }
+
+        fillState[board]++;
+
+        player = player switch
+        {
+            Player.X => Player.O,
+            Player.O => Player.X,
+            _ => Player.None
+        };
+
+        this.x = move.LastX;
+        this.y = move.LastY;
     }
-
+    
     public float Avaliate()
     {
         throw new System.NotImplementedException();
@@ -130,7 +126,7 @@ public struct GameState()
         throw new System.NotImplementedException();
     }
 
-    public IEnumerable<Move> GetMoves()
+    public readonly IEnumerable<Move> GetMoves()
     {
         if (x != -1 && y != -1)
         {
@@ -185,7 +181,7 @@ public struct GameState()
         }
     }
 
-    public override string ToString()
+    public override readonly string ToString()
     {
         var sb = new StringBuilder();
 
@@ -223,4 +219,82 @@ public struct GameState()
 
         return sb.ToString();
     }
+
+    readonly void UpMicro(int board, int pos)
+    {
+        var index = 8 * board + pos;
+        microScores[index]++;
+        if (microScores[index] < 3)
+            return;
+        
+        resultState[board] = +1;
+        var x = board % 3;
+        var y = board / 3;
+        UpMacro(x);
+        UpMacro(3 + y);
+        if (x == y)
+            UpMacro(6);
+        if (x + y == 2)
+            UpMacro(7);
+    }
+
+    readonly void RevertUpMicro(int board, int pos)
+    {
+        var index = 8 * board + pos;
+        microScores[index]--;
+        if (microScores[index] != 2)
+            return;
+        
+        resultState[board] = 0;
+        var x = board % 3;
+        var y = board / 3;
+        DownMacro(x);
+        DownMacro(3 + y);
+        if (x == y)
+            DownMacro(6);
+        if (x + y == 2)
+            DownMacro(7);
+    }
+
+    readonly void DownMicro(int board, int pos)
+    {
+        var index = 8 * board + pos;
+        microScores[index]--;
+        if (microScores[index] > -3)
+            return;
+        
+        resultState[board] = -1;
+        var x = board % 3;
+        var y = board / 3;
+        DownMacro(x);
+        DownMacro(3 + y);
+        if (x == y)
+            DownMacro(6);
+        if (x + y == 2)
+            DownMacro(7);
+    }
+    
+    readonly void RevertDownMicro(int board, int pos)
+    {
+        var index = 8 * board + pos;
+        microScores[index]++;
+        if (microScores[index] != -2)
+            return;
+        
+        resultState[board] = 0;
+        var x = board % 3;
+        var y = board / 3;
+        UpMacro(x);
+        UpMacro(3 + y);
+        if (x == y)
+            UpMacro(6);
+        if (x + y == 2)
+            UpMacro(7);
+    }
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    readonly void UpMacro(int pos) => macroScores[pos]++;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    readonly void DownMacro(int pos) => macroScores[pos]--;
 }
