@@ -1,9 +1,5 @@
-using System.Collections;
-using System.Collections.Generic;
-using System.Reflection.PortableExecutable;
-using System.Runtime.CompilerServices;
 using System.Text;
-using System.Threading.Tasks.Dataflow;
+using System.Collections.Generic;
 
 namespace AlmadaKing;
 
@@ -14,6 +10,8 @@ public struct GameState()
     ulong[] crossesBitboards = new ulong[9];
     int x, y = -1;
     Player player = Player.X;
+    int[] fillState = new int[9];
+    int[] resultState = new int[9];
     int[] microScores = new int[8 * 9];
     int[] macroScores = new int[8];
 
@@ -46,6 +44,8 @@ public struct GameState()
                 DownMicro(board, 7);
         }
 
+        fillState[board]++;
+
         player = player switch
         {
             Player.X => Player.O,
@@ -53,10 +53,16 @@ public struct GameState()
             _ => Player.None
         };
 
+        if (fillState[x + 3 * y] == 9)
+        {
+            this.x = this.y = -1;
+            return;
+        }
+
         for (int i = 0; i < 8; i++)
         {
-            var targetScore = macroScores[board];
-            if (targetScore is not 3 or -3)
+            var result = resultState[i];
+            if (result is not 1 or -1)
                 continue;
 
             this.x = this.y = -1;
@@ -67,40 +73,48 @@ public struct GameState()
         this.y = y;
     }
 
-    private void UpMicro(int board, int pos)
+    readonly void UpMicro(int board, int pos)
     {
         var index = 8 * board + pos;
         microScores[index]++;
         if (microScores[index] < 3)
             return;
         
+        resultState[board] = +1;
         var x = board % 3;
         var y = board / 3;
-        macroScores[x]++;
-        macroScores[3 + y]++;
+        UpMacro(x);
+        UpMacro(3 + y);
         if (x == y)
-            macroScores[6]++;
+            UpMacro(6);
         if (x + y == 2)
-            macroScores[7]++;        
+            UpMacro(7);
     }
 
-    private void DownMicro(int board, int pos)
+    readonly void DownMicro(int board, int pos)
     {
         var index = 8 * board + pos;
         microScores[index]--;
         if (microScores[index] > -3)
             return;
         
+        resultState[board] = -1;
         var x = board % 3;
         var y = board / 3;
-        macroScores[x]--;
-        macroScores[3 + y]--;
+        DownMacro(x);
+        DownMacro(3 + y);
         if (x == y)
-            macroScores[6]--;
+            DownMacro(6);
         if (x + y == 2)
-            macroScores[7]--;        
+            DownMacro(7);
     }
     
+    readonly void UpMacro(int pos)
+        => macroScores[pos]++;
+
+    readonly void DownMacro(int pos)
+        => macroScores[pos]--;
+
     public void Undo(Move move)
     {
 
@@ -130,10 +144,12 @@ public struct GameState()
             while (spaces > 0)
             {
                 if ((spaces & 1) > 0)
+                {
                     yield return new Move(
                         player, pos,
                         x, y
                     );
+                }
                 pos++;
                 spaces >>= 1;
             }
@@ -142,6 +158,12 @@ public struct GameState()
 
         for (int b = 0; b < 9; b++)
         {
+            if (fillState[b] == 9)
+                continue;
+            
+            if (resultState[b] != 0)
+                continue;
+
             ulong spaces = ~(
                 noughtsBitboards[b] |
                 crossesBitboards[b])
@@ -151,14 +173,15 @@ public struct GameState()
             while (spaces > 0)
             {
                 if ((spaces & 1) > 0)
+                {
                     yield return new Move(
                         player, pos,
                         x, y
                     );
+                }
                 pos++;
                 spaces >>= 1;
             }
-
         }
     }
 
