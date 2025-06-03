@@ -3,8 +3,8 @@ namespace AlmadaKing;
 /// <summary>
 /// Represents a move on the board.
 /// </summary>
-public readonly struct Move(Player player, int position)
+public readonly struct Move(Player player, byte position)
 {
-    public readonly int Position = position;
+    public readonly byte Position = position;
     public readonly Player Player = player;
 };
