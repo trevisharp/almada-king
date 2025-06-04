@@ -1,5 +1,9 @@
+using System;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 
 namespace AlmadaKing;
@@ -7,7 +11,7 @@ namespace AlmadaKing;
 /// <summary>
 /// Represents a state of Super Tic-Tac-Toe game.
 /// </summary>
-public struct GameState()
+public class GameState()
 {
     const ulong hasInfo = 0b111_111_111;
     readonly ulong[] noughtsBitboards = new ulong[9];
@@ -134,7 +138,7 @@ public struct GameState()
     /// that X player is winning. -1.0 means the O
     /// player is winning. 0 means a tie.
     /// </summary>
-    public float Avaliate(int depth = 6)
+    public float Avaliate(int depth = 3)
     {
         return AlphaBetaMiniMax(depth, 
             float.NegativeInfinity, 
@@ -144,13 +148,70 @@ public struct GameState()
 
     public Move PickBest()
     {
-        throw new System.NotImplementedException();
+        var moves = GetMoves();
+        var bag = new ConcurrentBag<(Move move, float aval)>();
+        Parallel.ForEach(moves, move =>
+        {
+            var state = Copy();
+            state.Do(move);
+            bag.Add((move, state.Avaliate()));
+        });
+
+        return
+            player == Player.X ?
+            bag.MaxBy(x => x.aval).move :
+            bag.MinBy(x => x.aval).move;
+    }
+
+    /// <summary>
+    /// Create a perfect copy from this state.
+    /// </summary>
+    public GameState Copy()
+    {
+        var copy = new GameState {
+            avaliation = avaliation,
+            end = end,
+            x = x,
+            y = y,
+            player = player
+        };
+        Array.Copy(
+            noughtsBitboards,
+            copy.noughtsBitboards,
+            noughtsBitboards.Length
+        );
+        Array.Copy(
+            crossesBitboards,
+            copy.crossesBitboards,
+            crossesBitboards.Length
+        );
+        Array.Copy(
+            macroScores,
+            copy.macroScores,
+            macroScores.Length
+        );
+        Array.Copy(
+            microScores,
+            copy.microScores,
+            microScores.Length
+        );
+        Array.Copy(
+            fillState,
+            copy.fillState,
+            fillState.Length
+        );
+        Array.Copy(
+            resultState,
+            copy.resultState,
+            resultState.Length
+        );
+        return copy;
     }
 
     /// <summary>
     /// Get a enumeration of valid moves.
     /// </summary>
-    public readonly IEnumerable<Move> GetMoves()
+    public IEnumerable<Move> GetMoves()
     {
         if (end == 1)
             yield break;
@@ -211,7 +272,7 @@ public struct GameState()
     /// <summary>
     /// Returns a string representing the board.
     /// </summary>
-    public override readonly string ToString()
+    public override string ToString()
     {
         var sb = new StringBuilder();
 
@@ -375,7 +436,7 @@ public struct GameState()
         => avaliation -= GetEvaluationByMacro(pos);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    readonly float GetEvaluationByMacro(int pos)
+    float GetEvaluationByMacro(int pos)
     {
         return macroScores[pos] switch
         {
