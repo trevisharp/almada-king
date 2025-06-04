@@ -4,18 +4,27 @@ using System.Runtime.CompilerServices;
 
 namespace AlmadaKing;
 
+/// <summary>
+/// Represents a state of Super Tic-Tac-Toe game.
+/// </summary>
 public struct GameState()
 {
     const ulong hasInfo = 0b111_111_111;
     readonly ulong[] noughtsBitboards = new ulong[9];
     readonly ulong[] crossesBitboards = new ulong[9];
     int x, y = -1;
+    float avaliation = 0;
+    ulong end = 0;
     Player player = Player.X;
     readonly int[] fillState = new int[9];
     readonly int[] resultState = new int[9];
     readonly int[] microScores = new int[8 * 9];
     readonly int[] macroScores = new int[8];
 
+    /// <summary>
+    /// Do a movement. Do a invalid move create a
+    /// instable state.
+    /// </summary>
     public void Do(Move move)
     {
         var board = move.Position / 9;
@@ -74,6 +83,10 @@ public struct GameState()
         this.y = y;
     }
 
+    /// <summary>
+    /// Undo a movement. Undo a invalid move create
+    /// a instable state.
+    /// </summary>
     public void Undo(Move move)
     {
         var board = move.Position / 9;
@@ -115,10 +128,18 @@ public struct GameState()
         this.x = move.LastX;
         this.y = move.LastY;
     }
-    
-    public float Avaliate()
+
+    /// <summary>
+    /// Get a avaliation from this state. 1.0 means
+    /// that X player is winning. -1.0 means the O
+    /// player is winning. 0 means a tie.
+    /// </summary>
+    public float Avaliate(int depth = 6)
     {
-        throw new System.NotImplementedException();
+        return AlphaBetaMiniMax(depth, 
+            float.NegativeInfinity, 
+            float.PositiveInfinity
+        );
     }
 
     public Move PickBest()
@@ -126,8 +147,14 @@ public struct GameState()
         throw new System.NotImplementedException();
     }
 
+    /// <summary>
+    /// Get a enumeration of valid moves.
+    /// </summary>
     public readonly IEnumerable<Move> GetMoves()
     {
+        if (end == 1)
+            yield break;
+
         if (x != -1 && y != -1)
         {
             int board = 3 * y + x;
@@ -181,6 +208,9 @@ public struct GameState()
         }
     }
 
+    /// <summary>
+    /// Returns a string representing the board.
+    /// </summary>
     public override readonly string ToString()
     {
         var sb = new StringBuilder();
@@ -220,10 +250,12 @@ public struct GameState()
         return sb.ToString();
     }
 
-    readonly void UpMicro(int board, int pos)
+    void UpMicro(int board, int pos)
     {
         var index = 8 * board + pos;
         microScores[index]++;
+        if (microScores[index] == 2)
+            avaliation += 0.025f;
         if (microScores[index] < 3)
             return;
         
@@ -238,9 +270,11 @@ public struct GameState()
             UpMacro(7);
     }
 
-    readonly void RevertUpMicro(int board, int pos)
+    void RevertUpMicro(int board, int pos)
     {
         var index = 8 * board + pos;
+        if (microScores[index] == 2)
+            avaliation -= 0.025f;
         microScores[index]--;
         if (microScores[index] != 2)
             return;
@@ -248,18 +282,20 @@ public struct GameState()
         resultState[board] = 0;
         var x = board % 3;
         var y = board / 3;
-        DownMacro(x);
-        DownMacro(3 + y);
+        RevertUpMacro(x);
+        RevertUpMacro(3 + y);
         if (x == y)
-            DownMacro(6);
+            RevertUpMacro(6);
         if (x + y == 2)
-            DownMacro(7);
+            RevertUpMacro(7);
     }
 
-    readonly void DownMicro(int board, int pos)
+    void DownMicro(int board, int pos)
     {
         var index = 8 * board + pos;
         microScores[index]--;
+        if (microScores[index] == -2)
+            avaliation -= 0.025f;
         if (microScores[index] > -3)
             return;
         
@@ -274,9 +310,11 @@ public struct GameState()
             DownMacro(7);
     }
     
-    readonly void RevertDownMicro(int board, int pos)
+    void RevertDownMicro(int board, int pos)
     {
         var index = 8 * board + pos;
+        if (microScores[index] == -2)
+            avaliation += 0.025f;
         microScores[index]++;
         if (microScores[index] != -2)
             return;
@@ -284,17 +322,109 @@ public struct GameState()
         resultState[board] = 0;
         var x = board % 3;
         var y = board / 3;
-        UpMacro(x);
-        UpMacro(3 + y);
+        RevertDownMacro(x);
+        RevertDownMacro(3 + y);
         if (x == y)
-            UpMacro(6);
+            RevertDownMacro(6);
         if (x + y == 2)
-            UpMacro(7);
+            RevertDownMacro(7);
     }
     
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    readonly void UpMacro(int pos) => macroScores[pos]++;
+    void UpMacro(int pos)
+    {
+        RevertAvaliationByMacro(pos);
+        macroScores[pos]++;
+        ChangeAvaliationByMacro(pos);
+        if (macroScores[pos] == 3)
+            end = 1;
+    }
+
+    void RevertUpMacro(int pos)
+    {
+        RevertAvaliationByMacro(pos);
+        macroScores[pos]--;
+        ChangeAvaliationByMacro(pos);
+        if (macroScores[pos] == 2)
+            end = 0;
+    }
+
+    void DownMacro(int pos)
+    {
+        RevertAvaliationByMacro(pos);
+        macroScores[pos]--;
+        ChangeAvaliationByMacro(pos);
+        if (macroScores[pos] == -3)
+            end = 1;
+    }
+
+    void RevertDownMacro(int pos)
+    {
+        RevertAvaliationByMacro(pos);
+        macroScores[pos]++;
+        ChangeAvaliationByMacro(pos);
+        if (macroScores[pos] == -2)
+            end = 0;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    readonly void DownMacro(int pos) => macroScores[pos]--;
+    void ChangeAvaliationByMacro(int pos)
+        => avaliation += GetEvaluationByMacro(pos);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    void RevertAvaliationByMacro(int pos)
+        => avaliation -= GetEvaluationByMacro(pos);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    readonly float GetEvaluationByMacro(int pos)
+    {
+        return macroScores[pos] switch
+        {
+            3 => 1f,
+            2 => 0.225f,
+            1 => 0.075f,
+            -1 => -0.075f,
+            -2 => -0.225f,
+            -3 => -1f,
+            _ => 0f
+        };
+    }
+
+    float AlphaBetaMiniMax(int depth, float alfa, float beta)
+    {
+        if (depth == 0 || end == 1)
+            return avaliation;
+        
+        if (player == Player.X)
+        {
+            float value = float.NegativeInfinity;
+            foreach (var move in GetMoves())
+            {
+                Do(move);
+                var newValue = AlphaBetaMiniMax(depth - 1, alfa, beta);
+                Undo(move);
+
+                value = float.Max(value, newValue);
+                if (value > beta)
+                    break;
+                alfa = float.Max(alfa, value);
+            }
+            return value;
+        }
+        else
+        {
+            float value = float.PositiveInfinity;
+            foreach (var move in GetMoves())
+            {
+                Do(move);
+                var newValue = AlphaBetaMiniMax(depth - 1, alfa, beta);
+                Undo(move);
+
+                value = float.Min(value, newValue);
+                if (value < alfa)
+                    break;
+                beta = float.Min(beta, value);
+            }
+            return value;
+        }
+    }
 }

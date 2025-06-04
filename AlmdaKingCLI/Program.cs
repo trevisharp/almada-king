@@ -7,6 +7,7 @@ Stack<Move> moves = [];
 for (int k = 0; k < 81; k++)
 {
     Console.WriteLine(state);
+    Console.WriteLine(state.Avaliate());
 
     var nextmoves = state.GetMoves().ToArray();
     if (nextmoves.Length == 0)
@@ -18,9 +19,9 @@ for (int k = 0; k < 81; k++)
     state.Do(randomMove);
 }
 
-while (moves.Count > 0)
-{
-    var move = moves.Pop();
-    state.Undo(move);
-    Console.WriteLine(state);
-}
+// while (moves.Count > 0)
+// {
+//     var move = moves.Pop();
+//     state.Undo(move);
+//     Console.WriteLine(state);
+// }
